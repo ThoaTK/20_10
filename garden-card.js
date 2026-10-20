@@ -28,6 +28,8 @@
     message: [...message.querySelectorAll('p')].map(readText).join('\n\n'),
     signature: readText(signature)
   };
+  let currentCardWishId = null;
+  let userCustomized = false;
 
   function renderGreeting() {
     recipient.textContent = greeting.recipient;
@@ -41,15 +43,46 @@
     }));
   }
 
+  function applyRandomCardWish() {
+    if (typeof getRandomWish === 'function' && Array.isArray(window.WISHES_DATA) && window.WISHES_DATA.length > 0) {
+      const wish = getRandomWish(window.WISHES_DATA, currentCardWishId);
+      if (wish) {
+        currentCardWishId = wish.id;
+        greeting.title = wish.title;
+        greeting.message = Array.isArray(wish.paragraphs) ? wish.paragraphs.join('\n\n') : wish.title;
+        renderGreeting();
+      }
+    }
+  }
+
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (saved && Object.entries(inputs).every(([key, input]) =>
       typeof saved[key] === 'string' && saved[key].trim() && saved[key].length <= input.maxLength)) {
       greeting = Object.fromEntries(Object.keys(inputs).map(key => [key, saved[key].trim()]));
+      userCustomized = true;
       renderGreeting();
     }
   } catch {
     // Keep the original letter when storage is unavailable or malformed.
+  }
+
+  // Tự động đổi ngẫu nhiên lời chúc mỗi khi mở thiệp
+  const cardObserver = new MutationObserver(mutations => {
+    for (const m of mutations) {
+      if (m.attributeName === 'open' && card.open && !userCustomized) {
+        applyRandomCardWish();
+      }
+    }
+  });
+  cardObserver.observe(card, { attributes: true });
+
+  const shuffleBtn = document.getElementById('shuffleWish');
+  if (shuffleBtn) {
+    shuffleBtn.addEventListener('click', () => {
+      userCustomized = false;
+      applyRandomCardWish();
+    });
   }
 
   function showReading() {
@@ -88,6 +121,7 @@
       input.setCustomValidity(input.value.trim() ? '' : 'Bạn viết vài chữ vào đây nhé.');
     });
     if (!editor.reportValidity()) return;
+    userCustomized = true;
     greeting = Object.fromEntries(Object.entries(inputs).map(([key, input]) => [key, input.value.trim()]));
     renderGreeting();
     showReading();

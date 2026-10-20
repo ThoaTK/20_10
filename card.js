@@ -88,6 +88,9 @@
 
   function setCardOpen(open) {
     if (dialog.open === open) return;
+    if (open && !userCustomized) {
+      applyRandomCardWish();
+    }
     reflowScene(() => {
       if (open) {
         showReading();
@@ -129,12 +132,15 @@
     sender: document.getElementById('senderInput')
   };
   let greeting = { ...defaultGreeting };
+  let currentCardWishId = null;
+  let userCustomized = false;
 
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (saved && Object.keys(inputs).every(key => typeof saved[key] === 'string'
       && saved[key].trim().length > 0 && saved[key].length <= inputs[key].maxLength)) {
       greeting = Object.fromEntries(Object.keys(inputs).map(key => [key, saved[key].trim()]));
+      userCustomized = true;
     }
   } catch {
     // The default letter stays usable when storage is unavailable or malformed.
@@ -152,6 +158,21 @@
     document.getElementById('cardSender').textContent = greeting.sender;
   }
 
+  function applyRandomCardWish() {
+    if (typeof getRandomWish === 'function' && Array.isArray(window.WISHES_DATA) && window.WISHES_DATA.length > 0) {
+      const wish = getRandomWish(window.WISHES_DATA, currentCardWishId);
+      if (wish) {
+        currentCardWishId = wish.id;
+        const cardTitle = document.getElementById('cardTitle');
+        if (cardTitle && wish.title) {
+          cardTitle.textContent = wish.title;
+        }
+        greeting.message = Array.isArray(wish.paragraphs) ? wish.paragraphs.join('\n\n') : wish.title;
+        renderGreeting();
+      }
+    }
+  }
+
   function showReading() {
     reading.hidden = false;
     editor.hidden = true;
@@ -167,6 +188,17 @@
     // Restart the brief reveal even when two flowers share the same wish.
     void wish.offsetWidth;
     wish.classList.add('is-new');
+
+    // Đồng bộ nội dung thiệp nếu thiệp đang mở và chưa bị sửa thủ công
+    if (dialog.open && !userCustomized && event.detail.wish) {
+      currentCardWishId = event.detail.wish.id;
+      const cardTitle = document.getElementById('cardTitle');
+      if (cardTitle && event.detail.wish.title) {
+        cardTitle.textContent = event.detail.wish.title;
+      }
+      greeting.message = Array.isArray(event.detail.wish.paragraphs) ? event.detail.wish.paragraphs.join('\n\n') : event.detail.wish.title;
+      renderGreeting();
+    }
   });
   document.getElementById('replayBloom').addEventListener('click', () => {
     document.dispatchEvent(new Event('bouquet:replay'));
@@ -216,6 +248,7 @@
       input.setCustomValidity(input.value.trim() ? '' : 'Bạn viết vài chữ vào đây nhé.');
     }
     if (!editor.reportValidity()) return;
+    userCustomized = true;
     greeting = Object.fromEntries(Object.entries(inputs).map(([key, input]) => [key, input.value.trim()]));
     renderGreeting();
     showReading();
@@ -228,5 +261,18 @@
     editButton.focus({ preventScroll: true });
     revealCard();
   });
-  renderGreeting();
+
+  const shuffleButton = document.getElementById('shuffleWish');
+  if (shuffleButton) {
+    shuffleButton.addEventListener('click', () => {
+      userCustomized = false;
+      applyRandomCardWish();
+    });
+  }
+
+  if (!userCustomized) {
+    applyRandomCardWish();
+  } else {
+    renderGreeting();
+  }
 })();

@@ -1556,8 +1556,24 @@ function renderBouquetScene(timestamp) {
   if (!reducedMotion) requestSceneRender();
 }
 
+let currentWishId = null;
+
 function announceRose(rose) {
-  document.dispatchEvent(new CustomEvent('bouquet:rose', { detail: { message: rose.whisper } }));
+  if (typeof getRandomWish === 'function' && Array.isArray(window.WISHES_DATA)) {
+    const wish = getRandomWish(window.WISHES_DATA, currentWishId);
+    if (wish) {
+      currentWishId = wish.id;
+      if (rose) rose.whisper = wish.title;
+      document.dispatchEvent(new CustomEvent('bouquet:rose', {
+        detail: {
+          message: wish.title,
+          wish: wish
+        }
+      }));
+      return;
+    }
+  }
+  document.dispatchEvent(new CustomEvent('bouquet:rose', { detail: { message: rose ? rose.whisper : '' } }));
 }
 
 function setupInteractions() {
@@ -1594,7 +1610,10 @@ function setupInteractions() {
     announceRose(rose);
     triggerBouquetBloomWave(rose.x, rose.y, 'ripple');
   });
-  document.addEventListener('bouquet:replay', () => triggerBouquetBloomWave(0, -30, 'grand'));
+  document.addEventListener('bouquet:replay', () => {
+    currentWishId = null;
+    triggerBouquetBloomWave(0, -30, 'grand');
+  });
   document.addEventListener('bouquet:celebrate', () => {
     const rect = bouquetCanvas.getBoundingClientRect();
     spawnPetalBurst(rect.left + stageW * 0.5, rect.top + stageH * 0.5, 10);
